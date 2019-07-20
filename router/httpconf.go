@@ -5,7 +5,7 @@ package router
 type httpConf struct {
 	Include      string        `json:"include"`
 	Default_Type string        `json:"default_type"`
-	Server       []*serverConf `json:"server"`
+	Server       []*ServerConf `json:"server"`
 	Upstream     []*upstream   `json:"upstream"`
 }
 
@@ -28,7 +28,8 @@ type location struct {
 	//deny
 }
 
-type serverConf struct {
+type ServerConf struct {
+	Auth           string      `json:"auth"`
 	Default_Server bool        `json:"default_server"`
 	Listen         int         `json:"listen"`
 	Server_Name    string      `json:"server_name"` //优先级1:精准匹配，2:通配符在前匹配，3:通配符在后匹配，4:正则匹配
@@ -36,4 +37,16 @@ type serverConf struct {
 	Index          []string    `json:"index"`
 	Location       []*location `json:"location"`
 	Return         int         `json:"return"`
+	Allow          []string    `json:"allow"`
+	Deny           []string    `json:"deny"`
+	Limit          []*Limit    `json:"limit"`
+}
+
+type Limit struct {
+	Policy []string `json:"policy"`
+	Second int      `json:"second"`
+	Minute int      `json:"minute"`
+	Hour   int      `json:"hour"`
+	Day    int      `json:"day"`
+	Week   int      `json:"week"`
 }

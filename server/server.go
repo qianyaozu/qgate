@@ -11,7 +11,7 @@ import (
 )
 
 func Start() {
-	if err := router.LoadNginxConf("qgate.conf"); err != nil {
+	if err := router.LoadNginxConf("D:\\go\\src\\github.com\\qianyaozu\\qgate\\qgateconfig.json"); err != nil {
 		fmt.Println("load config file error:", err)
 		return
 	}
@@ -20,8 +20,12 @@ func Start() {
 	ports := router.Conf.GetListenPorts()
 
 	proxy := NewProxyServer()
+
 	//注入路由转发中间件
-	proxy.UseRequestHandler(&handler.QRouter{})
+	proxy.UseRequestHandler(&handler.QAuth{})      //身份认证
+	proxy.UseRequestHandler(&handler.QIPControl{}) //IP控制
+	proxy.UseRequestHandler(&handler.QLimit{})     //限流
+	proxy.UseRequestHandler(&handler.QRouter{})    //路由转发
 
 	//监听端口启动服务
 	for _, p := range ports {

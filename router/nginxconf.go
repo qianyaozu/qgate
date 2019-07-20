@@ -3,29 +3,28 @@ package router
 import (
 	"encoding/json"
 	"errors"
+	"github.com/qianyaozu/qgate/httphelper"
 	"io/ioutil"
 	"math/rand"
+	"net/http"
 	"net/url"
 	"regexp"
 	"strconv"
 	"strings"
 )
 
+type QGateUser struct {
+	UserName string
+	Password string
+	Token    string
+}
 type NginxConf struct {
-	HttpConf   *httpConf   `json:"http"`   //http配置
-	StreamConf *streamConf `json:"stream"` //tcp配置
+	//StreamConf *streamConf `json:"stream"` //tcp配置
+	HttpConf *httpConf    `json:"http"` //http配置
+	User     []*QGateUser `json:"user"`
 }
 
 var Conf *NginxConf
-
-//func init() {
-//	var err error
-//	Conf, err = loadNginxConf("D:\\go\\src\\github.com\\qianyaozu\\qgate\\router\\qgate.conf")
-//	if err != nil {
-//		Conf = nil
-//		fmt.Println("加载路由配置文件失败")
-//	}
-//}
 
 //加载nginx配置文件
 func LoadNginxConf(path string) error {
@@ -62,24 +61,22 @@ func (conf *NginxConf) GetListenPorts() []int {
 	return ports
 }
 
-//获取重定向的访问地址,返回重定向的地址，http返回标识，异常信息
-func (conf *NginxConf) GetHttpLocation(ip, host, path string) (u *url.URL, returnCode int, err error) {
+//获取配置服务
+func (conf *NginxConf) GetHttpServer(r *http.Request) (server *ServerConf, err error) {
 	domain := ""
 	port := 0
-	u = nil
-	returnCode = 0
-	err = nil
-	if strings.Contains(host, ":") {
-		hosts := strings.Split(host, ":")
+	if strings.Contains(r.Host, ":") {
+		hosts := strings.Split(r.Host, ":")
 		domain = hosts[0]
 		port, err = strconv.Atoi(hosts[1])
 		if err != nil {
 			return
 		}
 	} else {
-		domain = host
+		domain = r.Host
 		port = 80
 	}
+
 	//匹配config规则
 	servers := conf.getServerByPort(port)
 	if len(servers) == 0 {
@@ -87,17 +84,22 @@ func (conf *NginxConf) GetHttpLocation(ip, host, path string) (u *url.URL, retur
 		return
 	}
 	//获取符合匹配条件的服务
-	server := getServerByDomain(domain, servers)
-	if server.Return > 0 {
-		returnCode = server.Return
-		return
-	}
-	loc := getServerByName(path, server)
+	server = getServerByDomain(domain, servers)
+	return
+}
+
+//获取重定向的访问地址,返回重定向的地址，http返回标识，异常信息
+func (server *ServerConf) GetHttpLocation(r *http.Request) (u *url.URL, returnCode int, err error) {
+	u = nil
+	returnCode = 0
+	err = nil
+
+	loc := getServerByName(r.URL.Path, server)
 	if loc.Regular == "" {
 		err = errors.New("router->GetHttpLocation():没有匹配的Location条件")
 		return
 	}
-	u, err = conf.getPathByLocation(ip, path, loc)
+	u, err = getPathByLocation(httphelper.ClientIP(r), r.URL.Path, loc)
 	if err != nil {
 		return
 	}
@@ -105,8 +107,8 @@ func (conf *NginxConf) GetHttpLocation(ip, host, path string) (u *url.URL, retur
 }
 
 //根据端口获取服务配置列表
-func (conf NginxConf) getServerByPort(port int) []*serverConf {
-	var serverList = make([]*serverConf, 0)
+func (conf *NginxConf) getServerByPort(port int) []*ServerConf {
+	var serverList = make([]*ServerConf, 0)
 	for _, server := range conf.HttpConf.Server {
 		if server.Listen == port {
 			serverList = append(serverList, server)
@@ -116,9 +118,9 @@ func (conf NginxConf) getServerByPort(port int) []*serverConf {
 }
 
 //根据服务名称获取服务配置列表
-func getServerByDomain(domain string, serverList []*serverConf) *serverConf {
+func getServerByDomain(domain string, serverList []*ServerConf) *ServerConf {
 	//匹配顺序：1:精准匹配，2:通配符在前匹配，3:通配符在后匹配，4:正则匹配 ，5:default_server为true,6:排在第一的
-	matchServer := make([]*serverConf, 0)
+	matchServer := make([]*ServerConf, 0)
 	for _, server := range serverList {
 		if server.Server_Name == domain {
 			//精准匹配
@@ -163,7 +165,7 @@ func getServerByDomain(domain string, serverList []*serverConf) *serverConf {
 }
 
 //根据服务获取location
-func getServerByName(path string, server *serverConf) *location {
+func getServerByName(path string, server *ServerConf) *location {
 	locs := make([]*location, 0)
 	for _, loc := range server.Location {
 		////1:精准匹配，2:前缀优先匹配，3:正则匹配，4:前缀匹配
@@ -219,8 +221,9 @@ func getServerByName(path string, server *serverConf) *location {
 }
 
 //根据路径或路由条件获取实际工作路径
-func (conf NginxConf) getPathByLocation(ip, path string, loc *location) (*url.URL, error) {
-	var relative = true //是否是相对路径
+func getPathByLocation(ip, path string, loc *location) (*url.URL, error) {
+	//是否是相对路径
+	var relative = true
 	if strings.HasSuffix(loc.Proxy_Pass, "/") {
 		relative = false
 	}
@@ -241,7 +244,7 @@ func (conf NginxConf) getPathByLocation(ip, path string, loc *location) (*url.UR
 		u.Path = u.Path + strings.Replace(path, matchPath, "", 1)
 	}
 	//根据规则替换upstream
-	for _, upstream := range conf.HttpConf.Upstream {
+	for _, upstream := range Conf.HttpConf.Upstream {
 		if upstream.Name == u.Host {
 			if upstream.Ip_Hash {
 				//iphash 获取服务器IP

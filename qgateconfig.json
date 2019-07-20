@@ -1,0 +1,40 @@
+{
+  "http": {
+    "include": "mime.types",
+    "default_type": "application/octet-stream",
+    "upstream": [{
+      "name": "localhost",
+      "ip_hash": true,
+      "server": ["192.168.2.162:22019"]
+    }],
+    "server": [{
+      "auth": "",
+      "default_server": true,
+      "listen": 8080,
+      "server_name": "localhost",
+      "location": [{
+        "regular": "/",
+        "proxy_pass": "http://localhost/"
+      }],
+      "allow": [],
+      "deny": [],
+      "limit":[{
+        "policy":["auth","ip","path","agent"],
+        "connection":100,
+        "second":10,
+        "minute":60,
+        "hour":600,
+        "day":10000,
+        "Week":10000
+      }]
+    }]
+  },
+  "stream": {
+
+  },
+  "User": [{
+    "UserName": "admin",
+    "Password": "admin",
+    "Token": "adminadminadminadmin"
+  }]
+}
