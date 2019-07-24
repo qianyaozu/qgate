@@ -8,7 +8,8 @@ import (
 )
 
 type QRequestLog struct {
-	Latency      time.Duration //请求耗时
+	Name         string `json:"name"` //用于elk存储
+	Latency      int64  //请求耗时
 	Host         string
 	OriginPath   string //原始请求路径
 	Path         string //实际转发路径
@@ -21,15 +22,18 @@ type QRequestLog struct {
 	Method      string //请求方式
 	StatusCode  int    //请求结果编码
 	ContentType string
+	Connection  int //并发请求数量
 	Error       interface{}
 }
 
 func HandleLog(context *QContext) {
 	defer func() {
-
+		if err := recover(); err != nil {
+			fmt.Println("HandleLog", err)
+		}
 	}()
 	var log = QRequestLog{
-
+		Name:       "qgate",
 		Host:       context.Request.Host,
 		OriginPath: context.Path,
 		Path:       context.Request.URL.Path,
@@ -37,15 +41,17 @@ func HandleLog(context *QContext) {
 		ClientIP:   context.ClientIP,
 		Method:     context.Request.Method,
 		StatusCode: context.Response.StatusCode,
-		//Header:r.Header
+		Connection: context.RemainConnection,
+		Error:      context.Error,
 	}
 	if t := context.Response.Header["Content-Type"]; len(t) > 0 {
 		log.ContentType = t[0]
 	}
 
-	log.Latency = time.Now().Sub(context.StartTime)
-	l := fmt.Sprintf("[QGate] %v  | %v | %v | %v | %v | %v | %v | %v Error:%v\n",
-		log.ContentType, log.StatusCode, log.Latency, log.ClientIP, log.Method, log.Host, log.OriginPath, log.Path, log.Error)
+	log.Latency = time.Now().Sub(context.StartTime).Nanoseconds() / 1000000
+	l := fmt.Sprintf("[QGate] %v  | %v | %v | %v | %v | %v | %v | %v Connection:%v\n",
+		log.ContentType, log.StatusCode, log.Latency, log.ClientIP, log.Method, log.Host, log.OriginPath, log.Path, log.Connection)
 	fmt.Fprintf(os.Stdout, l)
 	qlog.Trace("access", l)
+	qlog.ELK("access", log)
 }

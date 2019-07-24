@@ -1,7 +1,5 @@
 package router
 
-//import "sync"
-
 type httpConf struct {
 	Include      string        `json:"include"`
 	Default_Type string        `json:"default_type"`
@@ -43,10 +41,11 @@ type ServerConf struct {
 }
 
 type Limit struct {
-	Policy []string `json:"policy"`
-	Second int      `json:"second"`
-	Minute int      `json:"minute"`
-	Hour   int      `json:"hour"`
-	Day    int      `json:"day"`
-	Week   int      `json:"week"`
+	Policy     []string `json:"policy"`
+	Connection int      `json:"connection"` //并发连接数限制
+	Second     int      `json:"second"`
+	Minute     int      `json:"minute"`
+	Hour       int      `json:"hour"`
+	Day        int      `json:"day"`
+	Week       int      `json:"week"`
 }

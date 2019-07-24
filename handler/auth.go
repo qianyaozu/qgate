@@ -4,6 +4,7 @@ import (
 	"encoding/base64"
 	"github.com/qianyaozu/qgate/httphelper"
 	"github.com/qianyaozu/qgate/router"
+	"net/http"
 	"strings"
 )
 
@@ -23,7 +24,7 @@ func (qauth *QAuth) Handle(context *QContext) {
 		{
 			token := context.Request.Header["Authorization"]
 			if len(token) == 0 {
-				context.Response = httphelper.NewResponse(httphelper.UNAUTHORIZED, "UNAUTHORIZED")
+				context.Response = httphelper.NewResponse(http.StatusUnauthorized, "UNAUTHORIZED")
 				return
 			}
 
@@ -43,7 +44,7 @@ func (qauth *QAuth) Handle(context *QContext) {
 					}
 				}
 			}
-			context.Response = httphelper.NewResponse(httphelper.UNAUTHORIZED, "UNAUTHORIZED")
+			context.Response = httphelper.NewResponse(http.StatusUnauthorized, "UNAUTHORIZED")
 			return
 
 		}

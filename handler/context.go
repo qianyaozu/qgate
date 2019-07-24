@@ -24,7 +24,11 @@ type QContext struct {
 	Server        *router.ServerConf //路由信息
 	UserName      string             //用户名
 
-	IsAddRequestCount bool //是否已经增加请求计数
+	IsAddRequestCount bool //是否已经增加请求计数，避免一个请求进来重复增加计数
+
+	IsAddConnectionCount bool //是否已经增加连接计数，避免一个请求进来重复增加计数
+	RemainConnection     int  //剩余并发请求数量
+	Error                string
 }
 
 //初始化上下文

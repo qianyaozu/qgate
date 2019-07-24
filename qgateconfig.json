@@ -21,7 +21,7 @@
       "limit":[{
         "policy":["auth","ip","path","agent"],
         "connection":100,
-        "second":10,
+        "second":1,
         "minute":60,
         "hour":600,
         "day":10000,

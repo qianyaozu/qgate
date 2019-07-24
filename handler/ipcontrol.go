@@ -2,6 +2,7 @@ package handler
 
 import (
 	"github.com/qianyaozu/qgate/httphelper"
+	"net/http"
 )
 
 type QIPControl struct {
@@ -17,12 +18,12 @@ func (control *QIPControl) Handle(context *QContext) {
 				return
 			}
 		}
-		context.Response = httphelper.NewResponse(httphelper.BAD_GATEWAY, "IP FORBIDDEN")
+		context.Response = httphelper.NewResponse(http.StatusBadGateway, "IP FORBIDDEN")
 	} else if len(context.Server.Deny) > 0 {
 		//黑名单
 		for _, deny := range context.Server.Deny {
 			if context.ClientIP == deny {
-				context.Response = httphelper.NewResponse(httphelper.BAD_GATEWAY, "IP FORBIDDEN")
+				context.Response = httphelper.NewResponse(http.StatusBadGateway, "IP FORBIDDEN")
 			}
 		}
 	}

@@ -5,6 +5,7 @@ import (
 	"github.com/qianyaozu/qgate/handler"
 	"github.com/qianyaozu/qgate/httphelper"
 	"github.com/qianyaozu/qgate/router"
+
 	"io"
 	"net/http"
 )
@@ -27,22 +28,27 @@ func (server *QReverseServer) ServeHTTP(w http.ResponseWriter, r *http.Request) 
 	context := handler.InitContext(r)
 	defer func() {
 		if err := recover(); err != nil {
-			w.WriteHeader(httphelper.INTERNAL_SERVER_ERROR)
+			w.WriteHeader(http.StatusInternalServerError)
 			if context.Response == nil {
-				context.Response = httphelper.NewResponse(httphelper.INTERNAL_SERVER_ERROR, "INTERNAL_SERVER_ERROR "+fmt.Sprint(err))
+				context.Response = httphelper.NewResponse(http.StatusInternalServerError, "INTERNAL_SERVER_ERROR "+fmt.Sprint(err))
 			} else {
-				context.Response.StatusCode = httphelper.INTERNAL_SERVER_ERROR
+				context.Response.StatusCode = http.StatusInternalServerError
 			}
+			context.Error = fmt.Sprint(err)
 		}
+		//清除并发请求计数
+		context.RemainConnection = handler.ReleaseConnectionLimit(context)
+
 		//处理日志信息
 		handler.HandleLog(context)
+
 	}()
 
 	//根据配置信息获取路由信息
 	sconfig, err := router.Conf.GetHttpServer(context.Request)
 	if err != nil {
 		//服务访问出错
-		context.Response = httphelper.NewResponse(httphelper.BAD_GATEWAY, "BAD_GATEWAY "+err.Error())
+		context.Response = httphelper.NewResponse(http.StatusBadGateway, "BAD_GATEWAY "+err.Error())
 		goto writeresponse
 	}
 	if sconfig.Return > 0 {
@@ -56,7 +62,7 @@ func (server *QReverseServer) ServeHTTP(w http.ResponseWriter, r *http.Request) 
 	server.filterRequest(context)
 	if context.Response == nil {
 		//如果没有返回数据，则统一返回404
-		w.WriteHeader(httphelper.NOT_FOUND)
+		w.WriteHeader(http.StatusNotFound)
 		return
 	}
 	//origBody := context.Request.Body

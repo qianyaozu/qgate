@@ -7,9 +7,10 @@ import (
 )
 
 //组装http响应
-func NewResponse(code int, message string) *http.Response {
+func NewResponse(statusCode int, message string) *http.Response {
 	return &http.Response{
-		StatusCode: code,
+		Status:     http.StatusText(statusCode),
+		StatusCode: statusCode,
 		Body:       ioutil.NopCloser(bytes.NewReader([]byte(message))),
 	}
 }
