@@ -3,9 +3,11 @@ package handler
 import (
 	"fmt"
 	"github.com/qianyaozu/qlog"
-	"os"
+	"strings"
 	"time"
 )
+
+var Qlog *qlog.QLog
 
 type QRequestLog struct {
 	Name         string `json:"name"` //用于elk存储
@@ -33,7 +35,7 @@ func HandleLog(context *QContext) {
 		}
 	}()
 	var log = QRequestLog{
-		Name:       "qgate",
+		Name:       Qlog.Name + "_" + context.Server.Server_Name,
 		Host:       context.Request.Host,
 		OriginPath: context.Path,
 		Path:       context.Request.URL.Path,
@@ -49,9 +51,11 @@ func HandleLog(context *QContext) {
 	}
 
 	log.Latency = time.Now().Sub(context.StartTime).Nanoseconds() / 1000000
-	l := fmt.Sprintf("[QGate] %v  | %v | %v | %v | %v | %v | %v | %v Connection:%v\n",
-		log.ContentType, log.StatusCode, log.Latency, log.ClientIP, log.Method, log.Host, log.OriginPath, log.Path, log.Connection)
-	fmt.Fprintf(os.Stdout, l)
-	qlog.Trace("access", l)
-	qlog.ELK("access", log)
+	l := fmt.Sprintf("[QGate] %v  | %v | %v | %v | %v | %v | %v | %v Connection:%v   Error:%v",
+		log.ContentType, log.StatusCode, log.Latency, log.ClientIP, log.Method, log.Host, log.OriginPath, log.Path, log.Connection, log.Error)
+	fmt.Println(l)
+	Qlog.Trace("access", l)
+	if strings.HasPrefix(log.ContentType, "application/json") {
+		Qlog.Elk("access", log)
+	}
 }

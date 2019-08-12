@@ -35,6 +35,7 @@ func (server *QReverseServer) ServeHTTP(w http.ResponseWriter, r *http.Request) 
 				context.Response.StatusCode = http.StatusInternalServerError
 			}
 			context.Error = fmt.Sprint(err)
+			fmt.Println(err)
 		}
 		//清除并发请求计数
 		context.RemainConnection = handler.ReleaseConnectionLimit(context)

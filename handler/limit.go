@@ -22,28 +22,27 @@ const (
 )
 
 //时间戳字典
-var timePeriodMap = make(map[string]int64)
-
-func init() {
-	timePeriodMap["Second"] = 1
-	timePeriodMap["Minute"] = 1 * 60
-	timePeriodMap["Hour"] = 1 * 60 * 60
-	timePeriodMap["Day"] = 1 * 60 * 60 * 24
-	timePeriodMap["Week"] = 1 * 60 * 60 * 24 * 7
+var timePeriodMap = map[string]int64{
+	Period_Second: 1,
+	Period_Minute: 1 * 60,
+	Period_Hour:   1 * 60 * 60,
+	Period_Day:    1 * 60 * 60 * 24,
+	Period_Week:   1 * 60 * 60 * 24 * 7,
 }
 
 //限流
 func (qlimit *QLimit) Handle(context *QContext) {
 	var token = getServerRequestIdentityToken(context)
-	if con, ok := ConnectionLimitMap[token]; ok {
-		con.Mutex.Lock()
-		con.CurrentConnection = con.CurrentConnection + 1
-		con.Mutex.Unlock()
+	if con, ok := ConnectionLimitMap.Load(token); ok {
+		c := con.(*ConnectLimit)
+		c.Mutex.Lock()
+		c.CurrentConnection = c.CurrentConnection + 1
+		c.Mutex.Unlock()
 	} else {
-		ConnectionLimitMap[token] = &ConnectLimit{CurrentConnection: 1}
+		ConnectionLimitMap.Store(token, &ConnectLimit{CurrentConnection: 1})
 	}
 
-	if context.IsInWhiteList || len(context.Server.Limit) == 0 {
+	if context.IsInWhiteList || context.Server == nil || len(context.Server.Limit) == 0 {
 		//IP在白名单中或者没有设置限流规则，则不进行校验
 		return
 	}
@@ -57,21 +56,22 @@ func (qlimit *QLimit) Handle(context *QContext) {
 		//并发连接数限制
 		if limit.Connection > 0 {
 			var token = getRequestIdentityToken(context, "", limit.Policy)
-			if con, ok := ConnectionLimitMap[token]; ok {
-				if con.CurrentConnection >= limit.Connection {
+			if con, ok := ConnectionLimitMap.Load(token); ok {
+				c := con.(*ConnectLimit)
+				if c.CurrentConnection >= limit.Connection {
 					context.Response = httphelper.NewResponse(http.StatusTooManyRequests, "TOO_MANY_REQUESTS_CONCURRENCY")
 					return
 				} else {
 					if !context.IsAddConnectionCount {
-						con.Mutex.Lock()
-						con.CurrentConnection = con.CurrentConnection + 1
 						context.IsAddConnectionCount = true
-						con.Mutex.Unlock()
+						c.Mutex.Lock()
+						c.CurrentConnection = c.CurrentConnection + 1
+						c.Mutex.Unlock()
 
 					}
 				}
 			} else {
-				ConnectionLimitMap[token] = &ConnectLimit{CurrentConnection: 1}
+				ConnectionLimitMap.Store(token, &ConnectLimit{CurrentConnection: 1})
 				context.IsAddConnectionCount = true
 			}
 		}
@@ -134,7 +134,10 @@ func getRequestIdentityToken(context *QContext, period string, policy []string) 
 
 //获取服务对应的token
 func getServerRequestIdentityToken(context *QContext) string {
-	var name = context.Server.Server_Name + fmt.Sprint(context.Server.Listen)
+	var name = "server"
+	if context.Server != nil {
+		name = context.Server.Server_Name + fmt.Sprint(context.Server.Listen)
+	}
 	return base64.StdEncoding.EncodeToString([]byte(name))
 }
 
@@ -188,8 +191,8 @@ type ThrottlingCounter struct {
 }
 
 //并发请求计数map
-var ConnectionLimitMap = make(map[string]*ConnectLimit)
-
+//var ConnectionLimitMap = make(map[string]*ConnectLimit)
+var ConnectionLimitMap sync.Map //限流字典
 type ConnectLimit struct {
 	CurrentConnection int        //当前连接数
 	Mutex             sync.Mutex //并发连接计数器锁
@@ -199,14 +202,15 @@ type ConnectLimit struct {
 func ReleaseConnectionLimit(context *QContext) (current int) {
 	current = 0
 	var token = getServerRequestIdentityToken(context)
-	if con, ok := ConnectionLimitMap[token]; ok {
-		con.Mutex.Lock()
-		con.CurrentConnection = con.CurrentConnection - 1
-		current = con.CurrentConnection
-		con.Mutex.Unlock()
-	}
-	if len(context.Server.Limit) == 0 {
 
+	if con, ok := ConnectionLimitMap.Load(token); ok {
+		c := con.(*ConnectLimit)
+		c.Mutex.Lock()
+		c.CurrentConnection = c.CurrentConnection - 1
+		current = c.CurrentConnection
+		c.Mutex.Unlock()
+	}
+	if context.Server == nil || len(context.Server.Limit) == 0 {
 		return
 	}
 	for _, limit := range context.Server.Limit {
@@ -218,13 +222,13 @@ func ReleaseConnectionLimit(context *QContext) (current int) {
 		//并发连接数限制
 		if limit.Connection > 0 {
 			var token = getRequestIdentityToken(context, "", limit.Policy)
-			if con, ok := ConnectionLimitMap[token]; ok {
+			if con, ok := ConnectionLimitMap.Load(token); ok {
+				c := con.(*ConnectLimit)
 				if context.IsAddConnectionCount {
-					con.Mutex.Lock()
-					con.CurrentConnection = con.CurrentConnection - 1
 					context.IsAddConnectionCount = false
-					con.Mutex.Unlock()
-
+					c.Mutex.Lock()
+					c.CurrentConnection = c.CurrentConnection - 1
+					c.Mutex.Unlock()
 				}
 			}
 		}

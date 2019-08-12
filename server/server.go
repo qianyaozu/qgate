@@ -11,16 +11,10 @@ import (
 )
 
 func Start() {
-	if err := router.LoadNginxConf("D:\\go\\src\\github.com\\qianyaozu\\qgate\\qgateconfig.json"); err != nil {
-		fmt.Println("load config file error:", err)
-		return
-	}
 
 	//获取监听端口列表
 	ports := router.Conf.GetListenPorts()
-
 	proxy := NewProxyServer()
-
 	//注入路由转发中间件
 	proxy.UseRequestHandler(&handler.QAuth{})      //身份认证
 	proxy.UseRequestHandler(&handler.QIPControl{}) //IP控制

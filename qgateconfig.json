@@ -5,7 +5,7 @@
     "upstream": [{
       "name": "localhost",
       "ip_hash": true,
-      "server": ["192.168.2.162:22019"]
+      "server": ["www.jqsocial.com"]
     }],
     "server": [{
       "auth": "",
@@ -20,12 +20,12 @@
       "deny": [],
       "limit":[{
         "policy":["auth","ip","path","agent"],
-        "connection":100,
-        "second":1,
-        "minute":60,
-        "hour":600,
-        "day":10000,
-        "Week":10000
+        "connection":10000,
+        "second":0,
+        "minute":0,
+        "hour":0,
+        "day":0,
+        "Week":0
       }]
     }]
   },
